@@ -4,32 +4,51 @@ import { LoadingSpinner } from "../../components";
 import { IoSettingsOutline } from "react-icons/io5";
 import { FaUser } from "react-icons/fa";
 import { FaHeart } from "react-icons/fa6";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 
 const NotificationPage = () => {
-  const isLoading = false;
-  const notifications = [
-    {
-      _id: "1",
-      from: {
-        _id: "1",
-        username: "johndoe",
-        profileImg: "/avatars/boy2.png",
-      },
-      type: "follow",
+  const queryClient = useQueryClient();
+  const { data: notifications, isLoading } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/notification");
+        const data = await res.json();
+        if (!res.ok)
+          throw new Error(data.error || "Failed to fetch notifications");
+        return data;
+      } catch (error) {
+        throw error;
+      }
     },
-    {
-      _id: "2",
-      from: {
-        _id: "2",
-        username: "janedoe",
-        profileImg: "/avatars/girl1.png",
-      },
-      type: "like",
+  });
+  const { mutate: delNotifications, isPending } = useMutation({
+    mutationFn: async () => {
+      try {
+        const res = await fetch("/api/notification", {
+          method: "DELETE",
+        });
+        const data = await res.json();
+        if (!res.ok)
+          throw new Error(data.error || "Failed to delete notifications");
+        return data;
+      } catch (error) {
+        throw error;
+      }
     },
-  ];
+    onSuccess: () => {
+      toast.success("All notifications deleted");
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const deleteNotifications = () => {
-    alert("All notifications deleted");
+    if (isPending) return;
+    delNotifications();
   };
 
   return (
