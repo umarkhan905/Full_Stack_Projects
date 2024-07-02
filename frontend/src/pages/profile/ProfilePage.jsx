@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 
 import { ProfileHeaderSkeleton, Posts } from "../../components";
 import { EditProfileModal } from "../";
@@ -10,29 +10,41 @@ import { FaArrowLeft } from "react-icons/fa6";
 import { IoCalendarOutline } from "react-icons/io5";
 import { FaLink } from "react-icons/fa";
 import { MdEdit } from "react-icons/md";
+import { useQuery } from "@tanstack/react-query";
+import { formatMemberSinceDate } from "../../utils/date";
 
 const ProfilePage = () => {
   const [coverImg, setCoverImg] = useState(null);
   const [profileImg, setProfileImg] = useState(null);
-  const [feedType, setFeedType] = useState("posts");
+  const [feedType, setFeedType] = useState("userPosts");
 
   const coverImgRef = useRef(null);
   const profileImgRef = useRef(null);
 
-  const isLoading = false;
-  const isMyProfile = true;
+  const { username } = useParams();
 
-  const user = {
-    _id: "1",
-    fullName: "John Doe",
-    username: "johndoe",
-    profileImg: "/avatars/boy2.png",
-    coverImg: "/cover.png",
-    bio: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-    link: "https://youtube.com/@asaprogrammer_",
-    following: ["1", "2", "3"],
-    followers: ["1", "2", "3"],
-  };
+  const {
+    data: user,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = useQuery({
+    queryKey: ["profile"],
+    queryFn: async () => {
+      try {
+        const res = await fetch(`/api/user/profile/${username}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to fetch user");
+        return data;
+      } catch (error) {
+        throw error;
+      }
+    },
+  });
+
+  const { data: authUser } = useQuery({ queryKey: ["authUser"] });
+  const { data: posts } = useQuery({ queryKey: ["posts"] });
+  const isMyProfile = authUser?._id === user?._id;
 
   const handleImgChange = (e, state) => {
     const file = e.target.files[0];
@@ -45,26 +57,28 @@ const ProfilePage = () => {
       reader.readAsDataURL(file);
     }
   };
-
+  useEffect(() => {
+    refetch();
+  }, [username, refetch]);
   return (
     <>
       <div className="flex-[4_4_0]  border-r border-gray-700 min-h-screen ">
         {/* HEADER */}
-        {isLoading && <ProfileHeaderSkeleton />}
-        {!isLoading && !user && (
+        {(isLoading || isRefetching) && <ProfileHeaderSkeleton />}
+        {!isLoading && !isRefetching && !user && (
           <p className="text-center text-lg mt-4">User not found</p>
         )}
         <div className="flex flex-col">
-          {!isLoading && user && (
+          {!isLoading && !isRefetching && user && (
             <>
               <div className="flex gap-10 px-4 py-2 items-center">
                 <Link to="/">
                   <FaArrowLeft className="w-4 h-4" />
                 </Link>
                 <div className="flex flex-col">
-                  <p className="font-bold text-lg">{user?.fullName}</p>
+                  <p className="font-bold text-lg">{user?.fullname}</p>
                   <span className="text-sm text-slate-500">
-                    {POSTS?.length} posts
+                    {posts?.length} posts
                   </span>
                 </div>
               </div>
@@ -138,7 +152,7 @@ const ProfilePage = () => {
 
               <div className="flex flex-col gap-4 mt-14 px-4">
                 <div className="flex flex-col">
-                  <span className="font-bold text-lg">{user?.fullName}</span>
+                  <span className="font-bold text-lg">{user?.fullname}</span>
                   <span className="text-sm text-slate-500">
                     @{user?.username}
                   </span>
@@ -163,7 +177,7 @@ const ProfilePage = () => {
                   <div className="flex gap-2 items-center">
                     <IoCalendarOutline className="w-4 h-4 text-slate-500" />
                     <span className="text-sm text-slate-500">
-                      Joined July 2021
+                      {formatMemberSinceDate(user?.createdAt)}
                     </span>
                   </div>
                 </div>
@@ -185,17 +199,17 @@ const ProfilePage = () => {
               <div className="flex w-full border-b border-gray-700 mt-4">
                 <div
                   className="flex justify-center flex-1 p-3 hover:bg-secondary transition duration-300 relative cursor-pointer"
-                  onClick={() => setFeedType("posts")}>
+                  onClick={() => setFeedType("userPosts")}>
                   Posts
-                  {feedType === "posts" && (
+                  {feedType === "userPosts" && (
                     <div className="absolute bottom-0 w-10 h-1 rounded-full bg-primary" />
                   )}
                 </div>
                 <div
                   className="flex justify-center flex-1 p-3 text-slate-500 hover:bg-secondary transition duration-300 relative cursor-pointer"
-                  onClick={() => setFeedType("likes")}>
+                  onClick={() => setFeedType("likedPosts")}>
                   Likes
-                  {feedType === "likes" && (
+                  {feedType === "likedPosts" && (
                     <div className="absolute bottom-0 w-10  h-1 rounded-full bg-primary" />
                   )}
                 </div>
@@ -203,7 +217,7 @@ const ProfilePage = () => {
             </>
           )}
 
-          <Posts />
+          <Posts feedType={feedType} username={username} userId={user?._id} />
         </div>
       </div>
     </>
